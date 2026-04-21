@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mission Control — open-brain</title>
+<style>
+  :root {
+    --bg: #0b0e13;
+    --panel: #131821;
+    --panel-border: #232a38;
+    --text: #e6e9ef;
+    --dim: #8a94a8;
+    --accent: #7dd3fc;
+    --ok: #22c55e;
+    --warn: #eab308;
+    --err: #ef4444;
+    --row-hover: #1b2230;
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+  body { min-height: 100vh; }
+  header { padding: 12px 20px; border-bottom: 1px solid var(--panel-border); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  header h1 { margin: 0; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+  header .status-pills { display: flex; gap: 8px; align-items: center; }
+  .pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--panel-border); color: var(--dim); }
+  .pill.live { border-color: var(--ok); color: var(--ok); }
+  .pill.err { border-color: var(--err); color: var(--err); }
+
+  main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 12px 14px; }
+  .panel h2 { margin: 0 0 8px 0; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); display: flex; justify-content: space-between; align-items: center; }
+  .panel h2 .n { font-weight: 400; color: var(--dim); }
+
+  .agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .agent-card { padding: 10px; border: 1px solid var(--panel-border); border-radius: 8px; background: #0f141c; }
+  .agent-card.active { border-color: var(--ok); }
+  .agent-card.idle   { border-color: var(--panel-border); }
+  .agent-card .name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .agent-card .state { font-size: 11px; color: var(--dim); }
+  .agent-card .count { font-size: 11px; color: var(--dim); margin-top: 4px; }
+  .agent-card.err-badge .name::after { content: " ⚠"; color: var(--err); }
+
+  .feed-row { display: grid; grid-template-columns: 74px 120px 120px 1fr 52px; gap: 10px; padding: 4px 4px; border-bottom: 1px dotted var(--panel-border); align-items: baseline; }
+  .feed-row:hover { background: var(--row-hover); }
+  .feed-row .ts { color: var(--dim); font-size: 11px; }
+  .feed-row .agent { color: var(--accent); }
+  .feed-row .event { color: var(--dim); }
+  .feed-row .tool  { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-row .dur   { color: var(--dim); font-size: 11px; text-align: right; }
+  .feed-row.err    { background: rgba(239, 68, 68, 0.08); }
+  .feed-row.err .agent { color: var(--err); }
+
+  .messages-row { padding: 6px 4px; border-bottom: 1px dotted var(--panel-border); }
+  .messages-row .meta { font-size: 11px; color: var(--dim); display: flex; gap: 8px; }
+  .messages-row .body { margin-top: 2px; }
+  .messages-row .unread { color: var(--warn); }
+
+  .tasks-row { padding: 4px 0; border-bottom: 1px dotted var(--panel-border); display: flex; justify-content: space-between; gap: 8px; }
+  .tasks-row .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tasks-row .prio-1 { color: var(--err); }
+  .tasks-row .prio-2 { color: var(--warn); }
+  .tasks-row .prio-3 { color: var(--accent); }
+  .tasks-row .prio-4 { color: var(--dim); }
+  .tasks-row .prio-5 { color: var(--dim); }
+
+  footer { padding: 10px 20px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--panel-border); display: flex; justify-content: space-between; }
+  .empty { color: var(--dim); padding: 6px 4px; font-style: italic; }
+  .config { background: #2a1d00; color: #ffdf80; padding: 12px 16px; border-left: 3px solid var(--warn); margin: 16px 20px; border-radius: 6px; font-size: 12px; }
+  .config code { background: #3a2a00; padding: 1px 4px; border-radius: 3px; }
+
+  /* Warning banner when a secret is likely embedded */
+  .sec-warn { background: #3a0a0a; color: #fecaca; border-left: 3px solid var(--err); padding: 8px 12px; margin: 8px 20px; border-radius: 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mission Control <span style="color: var(--dim);">— open-brain</span></h1>
+  <div class="status-pills">
+    <span class="pill" id="pill-live">idle</span>
+    <span class="pill" id="pill-err">0 errors 24h</span>
+    <span class="pill" id="pill-refresh">last refresh —</span>
+  </div>
+</header>
+
+<div class="config" id="config-warning" style="display:none">
+  <strong>Config required.</strong> Edit the top of <code>docs/mission-control-v0.html</code>:
+  set <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> (anon key, <em>not</em> service role).
+  Anon key is safe to embed in a local HTML file; service role is not.
+  If your table RLS blocks the anon role, add read-only policies first (see
+  <code>docs/planning/multi-agent-architecture.md</code> Appendix E).
+</div>
+
+<main>
+  <div class="panel">
+    <h2>Agents <span class="n" id="agents-n"></span></h2>
+    <div id="agents" class="agents-grid"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Open tasks (priority) <span class="n" id="tasks-n"></span></h2>
+    <div id="tasks"></div>
+  </div>
+
+  <div class="panel" style="grid-column: 1 / -1;">
+    <h2>Live activity <span class="n" id="feed-n"></span></h2>
+    <div id="feed"></div>
+  </div>
+
+  <div class="panel" style="grid-column: 1 / -1;">
+    <h2>Peer messages <span class="n" id="msgs-n"></span></h2>
+    <div id="messages"></div>
+  </div>
+</main>
+
+<footer>
+  <div>Mission Control v0. Read-only. Refresh every 3s when browser tab visible.</div>
+  <div id="foot-status">—</div>
+</footer>
+
+<script>
+// ============================================================================
+// CONFIG — edit these two values then open the file directly in a browser.
+// SUPABASE_URL is safe to commit. SUPABASE_ANON_KEY is safe IF your tables have
+// read-only RLS policies for the anon role. NEVER embed the service role key.
+// ============================================================================
+const SUPABASE_URL      = "https://lqwgwqwdolegssfmyaxe.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxd2d3cXdkb2xlZ3NzZm15YXhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NjE5MTksImV4cCI6MjA4ODUzNzkxOX0.FSSY8m7wswVEwIUqtB-CuLtYnIohtl5xIavkY0YzNOA";
+
+// ============================================================================
+
+const REFRESH_MS = 3000;
+const FEED_LIMIT = 30;
+const MSG_LIMIT  = 20;
+const TASK_LIMIT = 15;
+
+function showConfigWarning() {
+  document.getElementById("config-warning").style.display = "block";
+}
+function warnIfSecretShaped() {
+  if (SUPABASE_ANON_KEY && /^eyJ/.test(SUPABASE_ANON_KEY) === false && SUPABASE_ANON_KEY.length > 20) {
+    const d = document.createElement("div");
+    d.className = "sec-warn";
+    d.innerHTML = "<strong>Warning:</strong> the value you placed in SUPABASE_ANON_KEY does not look like a typical anon key (JWT starting with 'eyJ'). If you accidentally pasted the service role key, REVOKE AND ROTATE IT NOW — this file is static HTML and anyone with the file has the key.";
+    document.body.insertBefore(d, document.querySelector("main"));
+  }
+}
+
+async function sbFetch(path) {
+  const url = `${SUPABASE_URL}/rest/v1/${path}`;
+  const resp = await fetch(url, {
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "Accept": "application/json",
+    },
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+  }
+  return resp.json();
+}
+
+function relTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return `${Math.round(diff)}s ago`;
+  if (diff < 3600) return `${Math.round(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.round(diff/3600)}h ago`;
+  return `${Math.round(diff/86400)}d ago`;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+}
+
+function renderAgents(rows) {
+  const el = document.getElementById("agents");
+  document.getElementById("agents-n").textContent = rows.length;
+  if (!rows.length) { el.innerHTML = '<div class="empty">No activity logged yet. Install hooks (see docs/planning/multi-agent-architecture.md Appendix C).</div>'; return; }
+  el.innerHTML = rows.map(r => {
+    const cls = ["agent-card"];
+    cls.push(r.active_last_2min ? "active" : "idle");
+    if (r.errors_last_24h > 0) cls.push("err-badge");
+    return `
+      <div class="${cls.join(" ")}">
+        <div class="name">${esc(r.agent_id)}</div>
+        <div class="state">${r.active_last_2min ? "active" : "idle"} · last ${relTime(r.last_event_at)}</div>
+        <div class="count">${r.events_last_hour} events / hr${r.errors_last_24h > 0 ? ` · <span style="color:var(--err);">${r.errors_last_24h} errors</span>` : ""}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderFeed(rows) {
+  const el = document.getElementById("feed");
+  document.getElementById("feed-n").textContent = rows.length;
+  if (!rows.length) { el.innerHTML = '<div class="empty">No events yet.</div>'; return; }
+  el.innerHTML = rows.map(r => {
+    const errCls = r.status === "error" ? "err" : "";
+    const dur = r.duration_ms != null ? `${r.duration_ms}ms` : "";
+    return `
+      <div class="feed-row ${errCls}">
+        <div class="ts">${esc(r.ts || "")}</div>
+        <div class="agent">${esc(r.agent_id)}</div>
+        <div class="event">${esc(r.event)}</div>
+        <div class="tool">${esc(r.tool_name || r.status || "")}</div>
+        <div class="dur">${dur}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderMessages(rows) {
+  const el = document.getElementById("messages");
+  document.getElementById("msgs-n").textContent = rows.length;
+  if (!rows.length) { el.innerHTML = '<div class="empty">No peer messages yet.</div>'; return; }
+  el.innerHTML = rows.map(r => {
+    const unread = r.state === "unread" ? "unread" : "";
+    const body = typeof r.body === "string" ? r.body : JSON.stringify(r.body);
+    return `
+      <div class="messages-row">
+        <div class="meta">
+          <span class="${unread}">${r.state === "unread" ? "●" : "○"}</span>
+          <span>${esc(r.from_agent)} → ${esc(r.to_agent)}</span>
+          <span>${esc(r.kind)}</span>
+          <span>${relTime(r.created_at)}</span>
+        </div>
+        <div class="body">${esc(body).slice(0, 280)}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderTasks(rows) {
+  const el = document.getElementById("tasks");
+  document.getElementById("tasks-n").textContent = rows.length;
+  if (!rows.length) { el.innerHTML = '<div class="empty">No open tasks.</div>'; return; }
+  el.innerHTML = rows.map(r => `
+    <div class="tasks-row">
+      <div class="title prio-${r.priority || 3}">${esc(r.title)}</div>
+      <div>${r.due_at ? relTime(r.due_at) : ""}</div>
+    </div>
+  `).join("");
+}
+
+async function refresh() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) { showConfigWarning(); return; }
+  try {
+    const [agents, feed, messages, tasks] = await Promise.all([
+      sbFetch("agent_status_now?select=*&order=last_event_at.desc").catch(() => []),
+      sbFetch(`agent_live_feed?select=*&limit=${FEED_LIMIT}`).catch(() => []),
+      sbFetch(`agent_messages?select=*&order=created_at.desc&limit=${MSG_LIMIT}`).catch(() => []),
+      sbFetch(`tasks?select=id,title,priority,due_at,status&status=neq.completed&order=priority.asc,due_at.asc&limit=${TASK_LIMIT}`).catch(() => []),
+    ]);
+
+    renderAgents(agents);
+    renderFeed(feed);
+    renderMessages(messages);
+    renderTasks(tasks);
+
+    const anyActive = agents.some(a => a.active_last_2min);
+    const totalErr24h = agents.reduce((s, a) => s + (a.errors_last_24h || 0), 0);
+    const pl = document.getElementById("pill-live");
+    pl.textContent = anyActive ? "live" : "idle";
+    pl.className = "pill" + (anyActive ? " live" : "");
+    const pe = document.getElementById("pill-err");
+    pe.textContent = `${totalErr24h} errors 24h`;
+    pe.className = "pill" + (totalErr24h > 0 ? " err" : "");
+    document.getElementById("pill-refresh").textContent = `refreshed ${new Date().toLocaleTimeString()}`;
+    document.getElementById("foot-status").textContent = "ok";
+  } catch (err) {
+    document.getElementById("foot-status").textContent = `error: ${err.message}`;
+    const pl = document.getElementById("pill-live");
+    pl.textContent = "offline"; pl.className = "pill err";
+  }
+}
+
+warnIfSecretShaped();
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
+</script>
+</body>
+</html>
