@@ -1,0 +1,40 @@
+{
+  "mission": "Personal operations stack run by Claude Code + Hermes with specialized worker agents.",
+  "agents": [
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "role": "Primary orchestrator",
+      "model": "claude-opus-4-7",
+      "device": "Windows / Claude CLI",
+      "mission": "Own MCP-heavy execution, coding, review, and scheduled work."
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes",
+      "role": "Peer orchestrator",
+      "model": "gpt-5.4",
+      "device": "WSL / Hermes Agent",
+      "mission": "Coordinate, synthesize, build local tooling, and keep long-lived state/docs coherent.",
+      "reports_to": "claude-code"
+    },
+    {
+      "id": "coding-muscle",
+      "name": "Coding Muscle",
+      "role": "Dedicated implementation subagent",
+      "model": "chatgpt-5.4",
+      "device": "Claude subagent",
+      "mission": "Handle bounded code changes and reviews in fresh contexts.",
+      "reports_to": "claude-code"
+    },
+    {
+      "id": "research-muscle",
+      "name": "Research Muscle",
+      "role": "Research and synthesis worker",
+      "model": "qwen-3.5",
+      "device": "Claude/Hermes subagent",
+      "mission": "Do transcript review, web research, and summarize findings for the orchestrator.",
+      "reports_to": "hermes"
+    }
+  ]
+}

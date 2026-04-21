@@ -1,7 +1,9 @@
-# mission-control
+# Mission Control
 
-Mission Control dashboard for the open-brain Supabase project, served via GitHub Pages at https://bmoore210.github.io/mission-control/.
+Public GitHub Pages host for the static Mission Control v1 app.
 
-This repo is a mirror for publishing only. The **source of truth** for the dashboard is `docs/mission-control-v0.html` in the private [`bmoore210/agents`](https://github.com/bmoore210/agents) repo — edits should be made there and copied here.
+Source of truth: private `bmoore210/agents` repo, `apps/mission-control-v1/`.
 
-The Supabase URL and publishable anon JWT embedded in `index.html` are safe to commit publicly: the open-brain project is RLS-gated, and the anon role has `SELECT` only on `agent_activity`, `agent_messages`, `tasks`, and three read-only views. Everything else is RLS-blocked.
+Notes:
+- Supabase URL and anon key are entered locally in the app config dialog and stored in browser localStorage.
+- Private token snapshots are not published here; use `token_snapshot.example.json` or upload a local snapshot in the Tokens tab.
