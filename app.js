@@ -607,7 +607,7 @@ async function renderSchedule() {
     if (!events.length && !tasks.length) {
       els.listContent.innerHTML = `
         <div class="callout">
-          <strong>Important:</strong> if calendar rows do not appear here, the likely missing piece is anon access to <code>public.calendar_events</code>. I added a migration for that in <code>db/migrations/008_calendar_events_anon_for_mission_control.sql</code>.
+          <strong>Important:</strong> if calendar rows do not appear here, the likely missing piece is anon access to <code>public.calendar_events</code>. I added a migration for that in <code>db/migrations/009_calendar_events_anon_for_mission_control.sql</code>.
         </div>
         <div class="empty-state">No upcoming calendar events or due tasks were returned for this window.</div>
       `;
